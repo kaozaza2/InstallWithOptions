@@ -15,6 +15,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,20 +44,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -72,10 +70,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.core.content.IntentCompat
 import dev.icerock.moko.mvvm.flow.compose.collectAsMutableState
@@ -86,6 +81,7 @@ import dev.zwander.installwithoptions.data.MutableOption
 import dev.zwander.installwithoptions.data.rememberInstallOptions
 import dev.zwander.installwithoptions.data.rememberMutableOptions
 import dev.zwander.installwithoptions.ui.theme.InstallWithOptionsTheme
+import dev.zwander.installwithoptions.ui.views.SelectedFilesScreen
 import dev.zwander.installwithoptions.util.ElevatedPermissionHandler
 import dev.zwander.installwithoptions.util.LocalShellInterface
 import dev.zwander.installwithoptions.util.handleIncomingUris
@@ -223,6 +219,22 @@ fun MainContent(modifier: Modifier = Modifier) {
                                 .navigationBarsPadding()
                                 .imePadding(),
                         ) {
+                            AnimatedVisibility(visible = selectedFiles.isNotEmpty()) {
+                                OutlinedButton(
+                                    onClick = { showingSelectedFiles = true },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 8.dp, end = 8.dp, bottom = 4.dp),
+                                ) {
+                                    Text(
+                                        text = stringResource(
+                                            id = R.string.selected_count,
+                                            selectedFiles.flatMap { it.value }.size,
+                                        ),
+                                    )
+                                }
+                            }
+
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -247,16 +259,7 @@ fun MainContent(modifier: Modifier = Modifier) {
                                                 border = ButtonDefaults.outlinedButtonBorder(true),
                                                 shape = CircleShape,
                                             )
-                                            .clip(CircleShape)
-                                            .then(
-                                                if (selectedFiles.isNotEmpty()) {
-                                                    Modifier.clickable {
-                                                        showingSelectedFiles = true
-                                                    }
-                                                } else {
-                                                    Modifier
-                                                },
-                                            ),
+                                            .clip(CircleShape),
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Text(text = selectedFiles.flatMap { it.value }.size.toString())
@@ -395,88 +398,23 @@ fun MainContent(modifier: Modifier = Modifier) {
         }
     }
 
-    if (showingSelectedFiles) {
-        AlertDialog(
-            onDismissRequest = { showingSelectedFiles = false },
-            confirmButton = {
-                TextButton(onClick = { showingSelectedFiles = false }) {
-                    Text(text = stringResource(id = android.R.string.ok))
-                }
+    AnimatedVisibility(
+        visible = showingSelectedFiles,
+        modifier = Modifier.fillMaxSize(),
+        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+    ) {
+        SelectedFilesScreen(
+            selectedFiles = selectedFiles,
+            onUpdatedFiles = {
+                selectedFiles = it.toMap()
             },
-            title = {
-                Text(text = stringResource(id = R.string.selected_files))
+            onInstall = {
+                showingSelectedFiles = false
+                install()
             },
-            text = {
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    selectedFiles.forEach { (pkg, files) ->
-                        stickyHeader {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(color = MaterialTheme.colorScheme.surfaceContainerHigh),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    text = pkg,
-                                    fontWeight = FontWeight.Bold,
-                                    textDecoration = TextDecoration.Underline,
-                                    modifier = Modifier.weight(1f),
-                                )
-
-                                IconButton(
-                                    onClick = {
-                                        selectedFiles -= pkg
-                                    },
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.delete_24px),
-                                        contentDescription = stringResource(id = R.string.remove),
-                                    )
-                                }
-                            }
-                        }
-
-                        items(items = files) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(color = MaterialTheme.colorScheme.surfaceContainerHigh),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    text = it.name ?: it.uri.toString(),
-                                    modifier = Modifier.weight(1f),
-                                )
-
-                                if (files.size > 1) {
-                                    IconButton(
-                                        onClick = {
-                                            selectedFiles = selectedFiles.toMutableMap().apply {
-                                                val newList = this[pkg]?.minus(it)
-
-                                                if (newList.isNullOrEmpty()) {
-                                                    remove(pkg)
-                                                } else {
-                                                    this[pkg] = newList
-                                                }
-                                            }
-                                        },
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.delete_24px),
-                                            contentDescription = stringResource(id = R.string.remove),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            onDismiss = { showingSelectedFiles = false },
+            modifier = Modifier.fillMaxSize(),
         )
     }
 }

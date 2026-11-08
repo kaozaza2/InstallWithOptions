@@ -3,6 +3,13 @@
 
     <string name="choose_files">Choose Files</string>
     <string name="selected_files">Selected Files</string>
+    <string name="clear_all">Clear All</string>
+    <string name="add_files">Add Files</string>
+    <string name="close">Close</string>
+    <string name="split_apks_count">Split APK Bundle • %1$d files</string>
+    <string name="single_apk">Single APK</string>
+    <string name="no_files_selected">No APKs selected yet. Use \"Add Files\" to pick APKs or split APK bundles.</string>
+    <string name="selected_count">Selected: %1$d</string>
     <string name="install">Install</string>
     <string name="success">Success</string>
     <string name="installation_complete">Installation Complete</string>
